@@ -5,5 +5,7 @@ COPY backend/pyproject.toml backend/uv.lock ./backend/
 RUN cd backend && uv pip install --system --requirement pyproject.toml
 COPY backend/ ./backend/
 COPY docs/ ./docs/
+ARG OPENAI_API_KEY
+RUN OPENAI_API_KEY=${OPENAI_API_KEY} python -m backend.ingest
 EXPOSE 8000
 CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
