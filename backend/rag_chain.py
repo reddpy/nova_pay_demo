@@ -24,18 +24,6 @@ from backend.config import (
 
 logger = logging.getLogger(__name__)
 
-FALLBACK_PROMPT = """You are NovaPay's internal documentation assistant. Answer questions using ONLY the provided context.
-
-Rules:
-- Always cite which document(s) your answer comes from by referencing the source filename
-- If the context doesn't contain enough information, say "I don't have documentation on that topic" — do NOT make up information
-
-Context:
-{context}
-
-Question: {question}"""
-
-
 def _get_vectorstore() -> Chroma:
     """Initialize the ChromaDB vector store."""
     persist_dir = os.path.abspath(CHROMA_PERSIST_DIR)
@@ -53,19 +41,13 @@ def _get_vectorstore() -> Chroma:
 
 
 def _get_prompt() -> ChatPromptTemplate:
-    """Try to pull prompt from LangSmith Hub, fall back to hardcoded prompt."""
-    try:
-        from langsmith import Client
+    """Pull prompt from LangSmith Hub."""
+    from langsmith import Client
 
-        client = Client()
-        prompt = client.pull_prompt(f"{PROMPT_NAME}:{PROMPT_TAG}")
-        logger.info(f"Loaded prompt from Hub: {PROMPT_NAME}:{PROMPT_TAG}")
-        return prompt
-    except Exception as e:
-        logger.warning(f"Could not pull prompt from Hub ({e}). Using fallback prompt.")
-        return ChatPromptTemplate.from_messages(
-            [("system", FALLBACK_PROMPT)]
-        )
+    client = Client()
+    prompt = client.pull_prompt(f"{PROMPT_NAME}:{PROMPT_TAG}")
+    logger.info(f"Loaded prompt from Hub: {PROMPT_NAME}:{PROMPT_TAG}")
+    return prompt
 
 
 @traceable(name="retrieve_documents")
