@@ -80,6 +80,7 @@ export default function Home() {
       try {
         await streamChat(
           question,
+          currentConvId,
           (token: string) => {
             setConversations((prev) =>
               prev.map((c) => {

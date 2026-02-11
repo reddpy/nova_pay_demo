@@ -5,6 +5,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export async function streamChat(
   question: string,
+  conversationId: string,
   onToken: (token: string) => void,
   onSources: (sources: Source[]) => void,
   onDone: () => void,
@@ -19,7 +20,7 @@ export async function streamChat(
       metadata: {
         user_type: "engineer",
         feature_area: "general",
-        session_id: crypto.randomUUID(),
+        thread_id: conversationId,
       },
     }),
     signal,
