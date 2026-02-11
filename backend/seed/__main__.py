@@ -1,5 +1,6 @@
 import sys
 
+from seed.datasets import seed_datasets
 from seed.prompts import seed_prompts
 from seed.teardown import teardown
 
@@ -11,6 +12,9 @@ def seed() -> None:
 
     print("\n[Prompts]")
     seed_prompts()
+
+    print("\n[Datasets]")
+    seed_datasets()
 
     print("\n" + "=" * 50)
     print("  Done!")

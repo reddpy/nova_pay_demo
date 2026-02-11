@@ -1,6 +1,7 @@
-"""Delete all LangSmith resources: prompts, datasets, annotation queues, and tracing projects."""
+"""Delete all LangSmith resources: prompts, datasets, experiments, annotation queues, and tracing projects."""
 
 from langsmith import Client
+from langsmith.utils import LangSmithNotFoundError
 
 
 def teardown() -> None:
@@ -13,7 +14,17 @@ def teardown() -> None:
         client.delete_prompt(prompt_identifier=prompt.repo_handle)
         print(f"  Deleted prompt: {prompt.repo_handle}")
 
-    # Datasets
+    # Experiments & Tracing Projects (delete before datasets to avoid orphaned refs)
+    # Experiments are projects with a reference_dataset_id; tracing projects are the rest.
+    print("\n[Experiments & Tracing Projects]")
+    for project in client.list_projects():
+        try:
+            client.delete_project(project_name=project.name)
+            print(f"  Deleted project: {project.name}")
+        except LangSmithNotFoundError:
+            print(f"  Already deleted: {project.name}")
+
+    # Datasets (after experiments so refs don't break)
     print("\n[Datasets]")
     for dataset in client.list_datasets():
         client.delete_dataset(dataset_id=dataset.id)
@@ -24,11 +35,5 @@ def teardown() -> None:
     for queue in client.list_annotation_queues():
         client.delete_annotation_queue(queue_id=queue.id)
         print(f"  Deleted annotation queue: {queue.name}")
-
-    # Tracing Projects (includes all traces, experiments, monitoring)
-    print("\n[Tracing Projects]")
-    for project in client.list_projects():
-        client.delete_project(project_name=project.name)
-        print(f"  Deleted project: {project.name}")
 
     print("\nTeardown complete.")

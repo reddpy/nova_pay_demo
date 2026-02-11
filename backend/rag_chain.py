@@ -8,7 +8,7 @@ from typing import AsyncIterator
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from langsmith import traceable
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -16,7 +16,6 @@ from backend.config import (
     CHROMA_PERSIST_DIR,
     COLLECTION_NAME,
     EMBEDDING_MODEL,
-    LLM_MODEL,
     PROMPT_NAME,
     PROMPT_TAG,
     RETRIEVER_K,
@@ -40,14 +39,14 @@ def _get_vectorstore() -> Chroma:
     )
 
 
-def _get_prompt() -> ChatPromptTemplate:
-    """Pull prompt from LangSmith Hub."""
+def _get_chain():
+    """Pull prompt + model chain from LangSmith Hub."""
     from langsmith import Client
 
     client = Client()
-    prompt = client.pull_prompt(f"{PROMPT_NAME}:{PROMPT_TAG}")
-    logger.info(f"Loaded prompt from Hub: {PROMPT_NAME}:{PROMPT_TAG}")
-    return prompt
+    chain = client.pull_prompt(f"{PROMPT_NAME}:{PROMPT_TAG}")
+    logger.info(f"Loaded chain from Hub: {PROMPT_NAME}:{PROMPT_TAG}")
+    return chain
 
 
 @traceable(name="retrieve_documents")
@@ -74,9 +73,7 @@ async def generate_answer(
     question: str, context: str, metadata: dict | None = None
 ) -> str:
     """Generate an answer using the LLM with the retrieved context."""
-    prompt = _get_prompt()
-    llm = ChatOpenAI(model=LLM_MODEL, temperature=0)
-    chain = prompt | llm
+    chain = _get_chain()
     response = await chain.ainvoke({"context": context, "question": question})
     return response.content
 
@@ -116,9 +113,7 @@ async def stream_rag_response(
     docs = retrieve_documents(question, metadata=metadata)
     context = format_context(docs)
 
-    prompt = _get_prompt()
-    llm = ChatOpenAI(model=LLM_MODEL, temperature=0, streaming=True)
-    chain = prompt | llm
+    chain = _get_chain()
 
     async for chunk in chain.astream({"context": context, "question": question}):
         if chunk.content:

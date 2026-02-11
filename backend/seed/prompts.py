@@ -1,7 +1,9 @@
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_openai import ChatOpenAI
 from langsmith import Client
+from langsmith.utils import LangSmithConflictError
 
-from config import PROMPT_NAME
+from config import LLM_MODEL, PROMPT_NAME
 
 SYSTEM_TEMPLATE = """\
 You are NovaPay's internal documentation assistant. Answer questions using ONLY the provided context.
@@ -17,15 +19,19 @@ Context: {context}
 Question: {question}"""
 
 prompt = ChatPromptTemplate.from_messages([("system", SYSTEM_TEMPLATE)])
+chain = prompt | ChatOpenAI(model=LLM_MODEL, temperature=0)
 
 
 def seed_prompts() -> None:
     client = Client()
-    url = client.push_prompt(
-        prompt_identifier=PROMPT_NAME,
-        object=prompt,
-        description="NovaPay internal docs QA prompt — answers strictly from provided context with source citations.",
-        is_public=False,
-    )
-    print(f"  Pushed '{PROMPT_NAME}' → {url}")
+    try:
+        url = client.push_prompt(
+            prompt_identifier=PROMPT_NAME,
+            object=chain,
+            description="NovaPay internal docs QA prompt — answers strictly from provided context with source citations.",
+            is_public=False,
+        )
+        print(f"  Pushed '{PROMPT_NAME}' → {url}")
+    except LangSmithConflictError:
+        print(f"  '{PROMPT_NAME}' already up-to-date, skipping")
     print(f"  ⚠ Remember to manually add the ':prod' tag in the LangSmith UI")
