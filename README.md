@@ -43,13 +43,29 @@ docker compose run --rm ingest
 
 This embeds the NovaPay documentation into ChromaDB for retrieval.
 
-### 3. Start the app
+### 3. Seed LangSmith (first time only)
+
+If starting with a fresh LangSmith account, seed the required prompts:
+
+```bash
+cd backend && uv run python -m seed
+```
+
+Then go to the LangSmith UI and add the `:prod` tag to the `novapay-qa-prompt` prompt.
+
+To wipe all LangSmith resources (prompts, datasets, annotation queues, tracing projects):
+
+```bash
+cd backend && uv run python -m seed teardown
+```
+
+### 4. Start the app
 
 ```bash
 docker compose up
 ```
 
-### 4. Open the app
+### 5. Open the app
 
 - **Frontend**: http://localhost:3000
 - **Backend health**: http://localhost:8000/api/health
@@ -108,7 +124,8 @@ langsmith-demo/
 │   ├── main.py         # FastAPI app with SSE streaming
 │   ├── rag_chain.py    # RAG pipeline with @traceable spans
 │   ├── ingest.py       # Document ingestion into ChromaDB
-│   └── config.py       # Configuration
+│   ├── config.py       # Configuration
+│   └── seed/           # LangSmith seed data (prompts, etc.)
 ├── docs/               # Fictional NovaPay engineering docs
 │   ├── onboarding/     # Getting started guides
 │   ├── api/            # API references
