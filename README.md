@@ -35,15 +35,7 @@ cp .env.example .env
 #   LANGCHAIN_API_KEY=lsv2_...
 ```
 
-### 2. Ingest docs into ChromaDB
-
-```bash
-docker compose run --rm ingest
-```
-
-This embeds the NovaPay documentation into ChromaDB for retrieval.
-
-### 3. Seed LangSmith (first time only)
+### 2. Seed LangSmith (first time only)
 
 If starting with a fresh LangSmith account, seed the required prompts:
 
@@ -59,13 +51,13 @@ To wipe all LangSmith resources (prompts, datasets, annotation queues, tracing p
 cd backend && uv run python -m seed teardown
 ```
 
-### 4. Start the app
+### 3. Start the app
 
 ```bash
 docker compose up
 ```
 
-### 5. Open the app
+### 4. Open the app
 
 - **Frontend**: http://localhost:3000
 - **Backend health**: http://localhost:8000/api/health
