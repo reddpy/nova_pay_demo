@@ -7,6 +7,7 @@ import sys
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from langsmith.run_helpers import tracing_context
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
@@ -60,11 +61,14 @@ async def chat(request: ChatRequest):
     if not request.question.strip():
         raise HTTPException(status_code=400, detail="Question cannot be empty")
 
+    thread_id = (request.metadata or {}).get("thread_id")
+
     try:
-        result = await rag_query(
-            question=request.question,
-            metadata=request.metadata,
-        )
+        with tracing_context(metadata={"thread_id": thread_id}):
+            result = await rag_query(
+                question=request.question,
+                metadata=request.metadata,
+            )
     except FileNotFoundError as e:
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
@@ -87,13 +91,16 @@ async def chat_stream(request: ChatRequest):
     if not request.question.strip():
         raise HTTPException(status_code=400, detail="Question cannot be empty")
 
+    thread_id = (request.metadata or {}).get("thread_id")
+
     async def event_generator():
         try:
-            async for chunk in stream_rag_response(
-                question=request.question,
-                metadata=request.metadata,
-            ):
-                yield {"data": json.dumps(chunk)}
+            with tracing_context(metadata={"thread_id": thread_id}):
+                async for chunk in stream_rag_response(
+                    question=request.question,
+                    metadata=request.metadata,
+                ):
+                    yield {"data": json.dumps(chunk)}
         except FileNotFoundError as e:
             yield {
                 "data": json.dumps(
