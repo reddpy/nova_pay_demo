@@ -35,13 +35,21 @@ cp .env.example .env
 #   LANGCHAIN_API_KEY=lsv2_...
 ```
 
-### 2. Ingest docs into ChromaDB
+### 2. Seed LangSmith (first time only)
+
+If starting with a fresh LangSmith account, seed the required prompts:
 
 ```bash
-docker compose run --rm ingest
+cd backend && uv run python -m seed
 ```
 
-This embeds the NovaPay documentation into ChromaDB for retrieval.
+Then go to the LangSmith UI and add the `:prod` tag to the `novapay-qa-prompt` prompt.
+
+To wipe all LangSmith resources (prompts, datasets, annotation queues, tracing projects):
+
+```bash
+cd backend && uv run python -m seed teardown
+```
 
 ### 3. Start the app
 
@@ -108,7 +116,8 @@ langsmith-demo/
 │   ├── main.py         # FastAPI app with SSE streaming
 │   ├── rag_chain.py    # RAG pipeline with @traceable spans
 │   ├── ingest.py       # Document ingestion into ChromaDB
-│   └── config.py       # Configuration
+│   ├── config.py       # Configuration
+│   └── seed/           # LangSmith seed data (prompts, etc.)
 ├── docs/               # Fictional NovaPay engineering docs
 │   ├── onboarding/     # Getting started guides
 │   ├── api/            # API references
