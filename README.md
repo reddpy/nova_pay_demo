@@ -8,7 +8,7 @@ A fullstack RAG (Retrieval-Augmented Generation) application for NovaPay's inter
 ┌─────────────────┐     ┌──────────────────┐     ┌──────────────┐
 │  Next.js React  │────▶│  FastAPI Backend  │────▶│   ChromaDB   │
 │    Frontend     │ SSE │  (LangChain RAG)  │     │ (Vector DB)  │
-│  localhost:3000 │◀────│  localhost:8000   │     └──────────────┘
+│    :3000        │◀────│    :8000          │     └──────────────┘
 └─────────────────┘     └────────┬─────────┘
                                  │
                         ┌────────▼─────────┐
@@ -20,33 +20,11 @@ A fullstack RAG (Retrieval-Augmented Generation) application for NovaPay's inter
 
 ## Prerequisites
 
-- Python 3.11+
-- Node.js 18+
-- [uv](https://docs.astral.sh/uv/) (Python package manager)
-- [pnpm](https://pnpm.io/) (Node.js package manager)
-- Docker & Docker Compose (optional, for containerized setup)
+- [Docker & Docker Compose](https://docs.docker.com/get-docker/)
 - OpenAI API key
 - LangSmith API key (free tier at [smith.langchain.com](https://smith.langchain.com))
 
-## Quick Start (Docker)
-
-The easiest way to run everything:
-
-```bash
-# 1. Set up env vars
-cp .env.example .env
-# Edit .env with your OPENAI_API_KEY and LANGCHAIN_API_KEY
-
-# 2. Ingest docs into ChromaDB
-docker compose run --rm ingest
-
-# 3. Start the app
-docker compose up
-```
-
-Open http://localhost:3000 and you're ready.
-
-## Quick Start (Local)
+## Quick Start
 
 ### 1. Set up environment variables
 
@@ -57,41 +35,27 @@ cp .env.example .env
 #   LANGCHAIN_API_KEY=lsv2_...
 ```
 
-### 2. Install and run the backend
+### 2. Ingest docs into ChromaDB
 
 ```bash
-cd backend
-uv sync
+docker compose run --rm ingest
 ```
 
-### 3. Ingest the docs into ChromaDB
+This embeds the NovaPay documentation into ChromaDB for retrieval.
+
+### 3. Start the app
 
 ```bash
-# From the project root
-uv run --project backend python -m backend.ingest
+docker compose up
 ```
 
-This creates a `chroma_db/` directory with embedded document chunks.
-
-### 4. Start the backend
-
-```bash
-uv run --project backend uvicorn backend.main:app --reload --port 8000
-```
-
-### 5. Install and run the frontend
-
-```bash
-cd frontend
-pnpm install
-pnpm dev
-```
-
-### 6. Open the app
+### 4. Open the app
 
 - **Frontend**: http://localhost:3000
 - **Backend health**: http://localhost:8000/api/health
 - **LangSmith traces**: https://smith.langchain.com (check the `novapay-docs-qa` project)
+
+To stop the app, run `docker compose down`. To rebuild after code changes, run `docker compose up --build`.
 
 ## Deliberate Retrieval Challenges
 
