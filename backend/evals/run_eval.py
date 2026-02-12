@@ -10,13 +10,19 @@ import argparse
 import os
 import sys
 
+from langchain_core.messages import AIMessage
 from langsmith import Client, evaluate
+from pydantic import BaseModel, Field
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from config import PROMPT_NAME, PROMPT_TAG
-from evals.correctness import correctness_evaluator
 
 DATASET_NAME = "novapay-qa-golden"
+
+
+class AnswerOutput(BaseModel):
+    """Answer to the question based on the provided context."""
+    content: str = Field(description="The answer content")
 
 
 def make_target(prompt_ref: str):
@@ -24,12 +30,15 @@ def make_target(prompt_ref: str):
     def target(inputs: dict) -> dict:
         client = Client()
         chain = client.pull_prompt(prompt_ref, include_model=True)
+        structured_chain = chain.first | chain.last.with_structured_output(
+            AnswerOutput, method="json_schema", strict=True
+        )
 
-        response = chain.invoke({
+        response = structured_chain.invoke({
             "question": inputs["question"],
             "context": inputs["context"],
         })
-        return {"answer": response.content}
+        return {"output": AIMessage(content=response.content)}
 
     return target
 
@@ -48,7 +57,6 @@ def main() -> None:
     results = evaluate(
         make_target(prompt_ref),
         data=DATASET_NAME,
-        evaluators=[correctness_evaluator],
         experiment_prefix=args.prefix,
     )
     print(f"Experiment complete: {results.experiment_name}")
