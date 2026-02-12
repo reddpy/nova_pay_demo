@@ -40,12 +40,13 @@ def _get_vectorstore() -> Chroma:
 
 
 def _get_chain():
-    """Pull prompt + model chain from LangSmith Hub."""
+    """Pull prompt + model from LangSmith Hub."""
     from langsmith import Client
 
     client = Client()
-    chain = client.pull_prompt(f"{PROMPT_NAME}:{PROMPT_TAG}")
-    logger.info(f"Loaded chain from Hub: {PROMPT_NAME}:{PROMPT_TAG}")
+    prompt_ref = f"{PROMPT_NAME}:{PROMPT_TAG}"
+    chain = client.pull_prompt(prompt_ref, include_model=True)
+    logger.info(f"Loaded chain from Hub: {prompt_ref}")
     return chain
 
 
