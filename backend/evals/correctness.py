@@ -38,7 +38,8 @@ Predicted answer: {predicted}"""
 
 def correctness_evaluator(run: Run, example: Example) -> dict:
     """Compare predicted answer against reference and return a 0-1 score with reasoning."""
-    predicted = run.outputs.get("answer", "")
+    output = run.outputs.get("output")
+    predicted = output.content if output else ""
     reference = example.outputs.get("answer", "")
     question = example.inputs.get("question", "")
 
