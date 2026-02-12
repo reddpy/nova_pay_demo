@@ -7,9 +7,8 @@ from typing import AsyncIterator
 
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import OpenAIEmbeddings
-from langsmith import traceable
+import langsmith as ls
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from backend.config import (
@@ -41,16 +40,14 @@ def _get_vectorstore() -> Chroma:
 
 def _get_chain():
     """Pull prompt + model from LangSmith Hub."""
-    from langsmith import Client
-
-    client = Client()
+    client = ls.Client()
     prompt_ref = f"{PROMPT_NAME}:{PROMPT_TAG}"
     chain = client.pull_prompt(prompt_ref, include_model=True)
     logger.info(f"Loaded chain from Hub: {prompt_ref}")
     return chain
 
 
-@traceable(name="retrieve_documents")
+@ls.traceable(name="retrieve_documents")
 def retrieve_documents(question: str, metadata: dict | None = None) -> list[Document]:
     """Retrieve relevant documents from the vector store."""
     vectorstore = _get_vectorstore()
@@ -59,7 +56,7 @@ def retrieve_documents(question: str, metadata: dict | None = None) -> list[Docu
     return docs
 
 
-@traceable(name="format_context")
+@ls.traceable(name="format_context")
 def format_context(docs: list[Document]) -> str:
     """Format retrieved documents into a context string."""
     context_parts = []
@@ -69,7 +66,7 @@ def format_context(docs: list[Document]) -> str:
     return "\n\n---\n\n".join(context_parts)
 
 
-@traceable(name="generate_answer")
+@ls.traceable(name="generate_answer")
 async def generate_answer(
     question: str, context: str, metadata: dict | None = None
 ) -> str:
@@ -94,7 +91,7 @@ def _extract_sources(docs: list[Document]) -> list[dict]:
     return sources
 
 
-@traceable(name="rag_query", run_type="chain")
+@ls.traceable(name="rag_query", run_type="chain")
 async def rag_query(
     question: str, metadata: dict | None = None
 ) -> dict:
@@ -106,7 +103,7 @@ async def rag_query(
     return {"answer": answer, "sources": sources}
 
 
-@traceable(name="rag_stream", run_type="chain")
+@ls.traceable(name="rag_stream", run_type="chain")
 async def stream_rag_response(
     question: str, metadata: dict | None = None
 ) -> AsyncIterator[dict]:
