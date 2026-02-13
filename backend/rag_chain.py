@@ -136,33 +136,6 @@ def _extract_sources(docs: list[Document]) -> list[dict]:
     return sources
 
 
-@ls.traceable(name="rag_query", run_type="chain")
-async def rag_query(
-    question: str, metadata: dict | None = None
-) -> dict:
-    """Full RAG pipeline with tool-calling routing."""
-    route_response = await route_query(question)
-
-    if route_response.tool_calls:
-        tool_call = route_response.tool_calls[0]
-        tool_result = list_documents.invoke(tool_call["args"])
-
-        llm = ChatOpenAI(model=LLM_MODEL, temperature=0)
-        final = await llm.ainvoke([
-            SystemMessage(content="Present the tool results to the user in a helpful way."),
-            HumanMessage(content=question),
-            route_response,
-            ToolMessage(content=tool_result, tool_call_id=tool_call["id"]),
-        ])
-        return {"answer": final.content, "sources": []}
-
-    docs = retrieve_documents(question, metadata=metadata)
-    context = format_context(docs)
-    answer = await generate_answer(question, context, metadata=metadata)
-    sources = _extract_sources(docs)
-    return {"answer": answer, "sources": sources}
-
-
 @ls.traceable(name="rag_stream", run_type="chain")
 async def stream_rag_response(
     question: str, metadata: dict | None = None

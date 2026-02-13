@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from backend.rag_chain import rag_query, stream_rag_response
+from backend.rag_chain import stream_rag_response
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -40,49 +40,9 @@ class ChatRequest(BaseModel):
     metadata: dict | None = None
 
 
-class SourceItem(BaseModel):
-    file: str
-    snippet: str
-
-
-class ChatResponse(BaseModel):
-    answer: str
-    sources: list[SourceItem]
-
-
 @app.get("/api/health")
 async def health():
     return {"status": "ok"}
-
-
-@app.post("/api/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest):
-    """Non-streaming chat endpoint. Returns full response as JSON."""
-    if not request.question.strip():
-        raise HTTPException(status_code=400, detail="Question cannot be empty")
-
-    thread_id = (request.metadata or {}).get("thread_id")
-
-    try:
-        with tracing_context(metadata={"thread_id": thread_id}):
-            result = await rag_query(
-                question=request.question,
-                metadata=request.metadata,
-            )
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=503, detail=str(e))
-    except Exception as e:
-        logger.error(f"Error processing query: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
-
-    # Flush traces
-    try:
-        from langchain_core.tracers import wait_for_all_tracers
-        wait_for_all_tracers()
-    except Exception:
-        pass
-
-    return result
 
 
 @app.post("/api/chat/stream")
