@@ -7,7 +7,9 @@ from typing import AsyncIterator
 
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
-from langchain_openai import OpenAIEmbeddings
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.tools import tool
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 import langsmith as ls
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -15,6 +17,7 @@ from backend.config import (
     CHROMA_PERSIST_DIR,
     COLLECTION_NAME,
     EMBEDDING_MODEL,
+    LLM_MODEL,
     PROMPT_NAME,
     PROMPT_TAG,
     RETRIEVER_K,
@@ -45,6 +48,48 @@ def _get_chain():
     chain = client.pull_prompt(prompt_ref, include_model=True)
     logger.info(f"Loaded chain from Hub: {prompt_ref}")
     return chain
+
+
+@tool
+def list_documents() -> str:
+    """List all available documents in the NovaPay knowledge base, organized by category."""
+    vectorstore = _get_vectorstore()
+    collection = vectorstore._collection
+    all_metadata = collection.get()["metadatas"]
+
+    docs_by_category: dict[str, set[str]] = {}
+    for meta in all_metadata:
+        category = meta.get("category", "General")
+        source = meta.get("source", "unknown")
+        docs_by_category.setdefault(category, set()).add(source)
+
+    lines = ["**Available NovaPay Documentation:**\n"]
+    for category in sorted(docs_by_category):
+        lines.append(f"### {category}")
+        for title in sorted(docs_by_category[category]):
+            lines.append(f"- {title}")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+ROUTE_SYSTEM_PROMPT = (
+    "You are a routing assistant for NovaPay documentation. "
+    "You have access to a `list_documents` tool that lists every document in the knowledge base. "
+    "If the user is asking what documents or topics are available, call the tool. "
+    "For ANY other question (even if it's about documentation content), just reply with the single word RAG."
+)
+
+
+@ls.traceable(name="route_query", run_type="chain")
+async def route_query(question: str) -> AIMessage:
+    """Ask the LLM whether to use a tool or fall through to RAG."""
+    llm = ChatOpenAI(model=LLM_MODEL, temperature=0).bind_tools([list_documents])
+    response = await llm.ainvoke([
+        SystemMessage(content=ROUTE_SYSTEM_PROMPT),
+        HumanMessage(content=question),
+    ])
+    return response
 
 
 @ls.traceable(name="retrieve_documents")
@@ -95,7 +140,22 @@ def _extract_sources(docs: list[Document]) -> list[dict]:
 async def rag_query(
     question: str, metadata: dict | None = None
 ) -> dict:
-    """Full RAG pipeline: retrieve, format, generate. Returns complete response."""
+    """Full RAG pipeline with tool-calling routing."""
+    route_response = await route_query(question)
+
+    if route_response.tool_calls:
+        tool_call = route_response.tool_calls[0]
+        tool_result = list_documents.invoke(tool_call["args"])
+
+        llm = ChatOpenAI(model=LLM_MODEL, temperature=0)
+        final = await llm.ainvoke([
+            SystemMessage(content="Present the tool results to the user in a helpful way."),
+            HumanMessage(content=question),
+            route_response,
+            ToolMessage(content=tool_result, tool_call_id=tool_call["id"]),
+        ])
+        return {"answer": final.content, "sources": []}
+
     docs = retrieve_documents(question, metadata=metadata)
     context = format_context(docs)
     answer = await generate_answer(question, context, metadata=metadata)
@@ -107,7 +167,28 @@ async def rag_query(
 async def stream_rag_response(
     question: str, metadata: dict | None = None
 ) -> AsyncIterator[dict]:
-    """Streaming RAG pipeline. Yields token chunks and then sources."""
+    """Streaming RAG pipeline with tool-calling routing."""
+    route_response = await route_query(question)
+
+    if route_response.tool_calls:
+        tool_call = route_response.tool_calls[0]
+        tool_result = list_documents.invoke(tool_call["args"])
+
+        llm = ChatOpenAI(model=LLM_MODEL, temperature=0)
+        messages = [
+            SystemMessage(content="Present the tool results to the user in a helpful way."),
+            HumanMessage(content=question),
+            route_response,
+            ToolMessage(content=tool_result, tool_call_id=tool_call["id"]),
+        ]
+        async for chunk in llm.astream(messages):
+            if chunk.content:
+                yield {"type": "token", "content": chunk.content}
+
+        yield {"type": "sources", "content": []}
+        yield {"type": "done"}
+        return
+
     docs = retrieve_documents(question, metadata=metadata)
     context = format_context(docs)
 
