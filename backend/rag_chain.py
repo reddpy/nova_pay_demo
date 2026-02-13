@@ -111,15 +111,6 @@ def format_context(docs: list[Document]) -> str:
     return "\n\n---\n\n".join(context_parts)
 
 
-@ls.traceable(name="generate_answer")
-async def generate_answer(
-    question: str, context: str, metadata: dict | None = None
-) -> str:
-    """Generate an answer using the LLM with the retrieved context."""
-    chain = _get_chain()
-    response = await chain.ainvoke({"context": context, "question": question})
-    return response.content
-
 
 def _extract_sources(docs: list[Document]) -> list[dict]:
     """Extract source information from documents."""
@@ -134,33 +125,6 @@ def _extract_sources(docs: list[Document]) -> list[dict]:
                 snippet += "..."
             sources.append({"file": source_file, "snippet": snippet})
     return sources
-
-
-@ls.traceable(name="rag_query", run_type="chain")
-async def rag_query(
-    question: str, metadata: dict | None = None
-) -> dict:
-    """Full RAG pipeline with tool-calling routing."""
-    route_response = await route_query(question)
-
-    if route_response.tool_calls:
-        tool_call = route_response.tool_calls[0]
-        tool_result = list_documents.invoke(tool_call["args"])
-
-        llm = ChatOpenAI(model=LLM_MODEL, temperature=0)
-        final = await llm.ainvoke([
-            SystemMessage(content="Present the tool results to the user in a helpful way."),
-            HumanMessage(content=question),
-            route_response,
-            ToolMessage(content=tool_result, tool_call_id=tool_call["id"]),
-        ])
-        return {"answer": final.content, "sources": []}
-
-    docs = retrieve_documents(question, metadata=metadata)
-    context = format_context(docs)
-    answer = await generate_answer(question, context, metadata=metadata)
-    sources = _extract_sources(docs)
-    return {"answer": answer, "sources": sources}
 
 
 @ls.traceable(name="rag_stream", run_type="chain")
