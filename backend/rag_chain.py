@@ -111,15 +111,6 @@ def format_context(docs: list[Document]) -> str:
     return "\n\n---\n\n".join(context_parts)
 
 
-@ls.traceable(name="generate_answer")
-async def generate_answer(
-    question: str, context: str, metadata: dict | None = None
-) -> str:
-    """Generate an answer using the LLM with the retrieved context."""
-    chain = _get_chain()
-    response = await chain.ainvoke({"context": context, "question": question})
-    return response.content
-
 
 def _extract_sources(docs: list[Document]) -> list[dict]:
     """Extract source information from documents."""
