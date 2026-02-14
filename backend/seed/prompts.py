@@ -1,4 +1,4 @@
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_openai import ChatOpenAI
 from langsmith import Client
 from langsmith.utils import LangSmithConflictError
@@ -12,13 +12,15 @@ Rules:
 - Always cite which document(s) your answer comes from by referencing the source filename
 - If the context doesn't contain enough information, say "I don't have documentation on that topic" — do NOT make up information
 - if there is conflicting information on some of the numbers, give both of the numbers and let the user decide for themselves and flag it.
+- Use the conversation history to understand follow-up questions and resolve ambiguous references like "it", "that", "yes", "tell me more", etc.
 
+Context: {context}"""
 
-Context: {context}
-
-Question: {question}"""
-
-prompt = ChatPromptTemplate.from_messages([("system", SYSTEM_TEMPLATE)])
+prompt = ChatPromptTemplate.from_messages([
+    ("system", SYSTEM_TEMPLATE),
+    MessagesPlaceholder("history", optional=True),
+    ("human", "{question}"),
+])
 chain = prompt | ChatOpenAI(model=LLM_MODEL, temperature=0)
 
 
