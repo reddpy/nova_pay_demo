@@ -7,6 +7,7 @@ from typing import AsyncIterator
 
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
+from langchain_core.chat_history import InMemoryChatMessageHistory
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
@@ -24,6 +25,15 @@ from backend.config import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Server-side conversation history, keyed by session_id
+_history_store: dict[str, InMemoryChatMessageHistory] = {}
+
+
+def get_session_history(session_id: str) -> InMemoryChatMessageHistory:
+    if session_id not in _history_store:
+        _history_store[session_id] = InMemoryChatMessageHistory()
+    return _history_store[session_id]
 
 def _get_vectorstore() -> Chroma:
     """Initialize the ChromaDB vector store."""
@@ -132,14 +142,21 @@ def _extract_sources(docs: list[Document]) -> list[dict]:
 
 @ls.traceable(name="rag_stream", run_type="chain")
 async def stream_rag_response(
-    question: str, metadata: dict | None = None, history: list | None = None
+    question: str, metadata: dict | None = None
 ) -> AsyncIterator[dict]:
     """Streaming RAG pipeline with tool-calling routing."""
     # Propagate session_id to all child runs for proper thread grouping
     session_id = (metadata or {}).get("thread_id")
     ls_extra = {"metadata": {"session_id": session_id}} if session_id else {}
 
-    route_response = await route_query(question, history=history, langsmith_extra=ls_extra)
+    # Load server-side history and record the user message
+    history = get_session_history(session_id) if session_id else None
+    if history:
+        history.add_user_message(question)
+
+    history_messages = history.messages[:-1] if history else None  # exclude current question
+
+    route_response = await route_query(question, history=history_messages, langsmith_extra=ls_extra)
 
     if route_response.tool_calls:
         tool_call = route_response.tool_calls[0]
@@ -152,9 +169,14 @@ async def stream_rag_response(
             route_response,
             ToolMessage(content=tool_result, tool_call_id=tool_call["id"]),
         ]
+        full_response = ""
         async for chunk in llm.astream(messages):
             if chunk.content:
+                full_response += chunk.content
                 yield {"type": "token", "content": chunk.content}
+
+        if history:
+            history.add_ai_message(full_response)
 
         yield {"type": "sources", "content": []}
         yield {"type": "done"}
@@ -166,12 +188,17 @@ async def stream_rag_response(
     chain = _get_chain()
 
     chain_input = {"context": context, "question": question}
-    if history:
-        chain_input["history"] = history
+    if history_messages:
+        chain_input["history"] = history_messages
 
+    full_response = ""
     async for chunk in chain.astream(chain_input):
         if chunk.content:
+            full_response += chunk.content
             yield {"type": "token", "content": chunk.content}
+
+    if history:
+        history.add_ai_message(full_response)
 
     sources = _extract_sources(docs)
     yield {"type": "sources", "content": sources}
