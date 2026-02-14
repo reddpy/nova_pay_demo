@@ -39,19 +39,12 @@ cp .env.example .env
 
 ### 2. Seed LangSmith (first time only)
 
-If starting with a fresh LangSmith account, seed the required prompts:
-
 ```bash
-cd backend && uv run python -m seed
+./seed.sh      # seed prompts & datasets
+./teardown.sh  # wipe all seeded resources
 ```
 
-Then go to the LangSmith UI and add the `:prod` tag to the `novapay-qa-prompt` prompt.
-
-To wipe all LangSmith resources (prompts, datasets, annotation queues, tracing projects):
-
-```bash
-cd backend && uv run python -m seed teardown
-```
+Then add the `:prod` tag to the `novapay-qa-prompt` prompt in the LangSmith UI.
 
 ### 3. Start the app
 
@@ -66,6 +59,17 @@ docker compose up
 - **LangSmith traces**: https://smith.langchain.com (check the `novapay-docs-qa` project)
 
 To stop the app, run `docker compose down`. To rebuild after code changes, run `docker compose up --build`.
+
+## Scripts
+
+| Script | Description |
+|--------|-------------|
+| `./seed.sh` | Push prompts & golden dataset to LangSmith |
+| `./teardown.sh` | Delete all seeded LangSmith resources |
+| `./generate_dataset.sh` | Regenerate golden dataset reference answers |
+| `./run_eval.sh` | Run correctness & off-topic evals against golden dataset |
+
+The eval script accepts optional flags: `./run_eval.sh --tag staging --prefix my-experiment`
 
 ## Deliberate Retrieval Challenges
 
@@ -113,33 +117,47 @@ These are intentionally built into the docs to create interesting scenarios duri
 ## Project Structure
 
 ```
-langsmith-demo/
-├── docker-compose.yml  # Docker orchestration
-├── frontend/           # Next.js React frontend (pnpm)
-│   └── Dockerfile
-├── backend/            # FastAPI + LangChain backend (uv)
+nova_pay/
+├── docker-compose.yml        # Docker orchestration
+├── seed.sh                   # Seed LangSmith resources
+├── teardown.sh               # Wipe LangSmith resources
+├── generate_dataset.sh       # Regenerate golden dataset
+├── run_eval.sh               # Run LangSmith evals
+├── frontend/                 # Next.js React frontend (pnpm)
+│   ├── Dockerfile
+│   └── src/
+│       ├── app/page.tsx      # Main chat UI
+│       ├── components/       # ChatInterface, MessageBubble, Sidebar, Header, SourceCitation
+│       └── lib/
+│           ├── api.ts        # SSE streaming client
+│           └── types.ts      # TypeScript types
+├── backend/                  # FastAPI + LangChain backend (uv)
 │   ├── Dockerfile
 │   ├── pyproject.toml
-│   ├── uv.lock
-│   ├── main.py         # FastAPI app with SSE streaming
-│   ├── rag_chain.py    # RAG pipeline with server-side history & @traceable spans
-│   ├── ingest.py       # Document ingestion into ChromaDB
-│   ├── config.py       # Configuration
-│   └── seed/           # LangSmith seed data (prompts, etc.)
-├── docs/               # Fictional NovaPay engineering docs
-│   ├── onboarding/     # Getting started guides
-│   ├── api/            # API references
-│   ├── runbooks/       # Incident runbooks
-│   ├── architecture/   # System architecture docs
-│   ├── processes/      # Engineering processes
-│   └── standards/      # Coding and API standards
-└── chroma_db/          # ChromaDB persistent storage (generated)
+│   ├── main.py               # FastAPI app with SSE streaming
+│   ├── rag_chain.py          # RAG pipeline, routing, server-side history, @traceable spans
+│   ├── ingest.py             # Document chunking & ChromaDB ingestion
+│   ├── config.py             # Environment & model configuration
+│   ├── seed/                 # LangSmith seed scripts (prompts, datasets, teardown)
+│   │   └── golden_dataset.json
+│   └── evals/                # LangSmith evaluation suite
+│       ├── run_eval.py       # Correctness eval runner
+│       ├── is_correct_eval_prompt.py
+│       └── off_topic_eval_prompt.py
+├── docs/                     # Fictional NovaPay engineering docs (17 markdown files)
+│   ├── api/                  # payments-api, users-api, notifications-api
+│   ├── architecture/         # system-overview, auth-architecture, data-pipeline
+│   ├── onboarding/           # first-week-checklist, local-dev-setup, team-structure
+│   ├── processes/            # deployment-process, code-review-guidelines, incident-response
+│   ├── runbooks/             # database-failover, high-latency-debugging, payments-service-down
+│   └── standards/            # api-design-guidelines, coding-standards
+└── chroma_db/                # ChromaDB persistent storage (generated at build time)
 ```
 
 ## Tech Stack
 
-**Backend**: Python, FastAPI, LangChain, ChromaDB, OpenAI, LangSmith, **uv**
-**Frontend**: Next.js 15, React, TypeScript, Tailwind CSS, **pnpm**
+**Backend**: Python 3.12, FastAPI, LangChain, ChromaDB, OpenAI, LangSmith, **uv**
+**Frontend**: Next.js 15, React 19, TypeScript, Tailwind CSS, **pnpm**
 **Infrastructure**: Docker, Docker Compose
 **LLM**: GPT-4o-mini (configurable via `LLM_MODEL` env var)
 **Embeddings**: text-embedding-3-small
