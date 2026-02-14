@@ -11,7 +11,7 @@ To set up as an online evaluator in the LangSmith UI:
   5. Set feedback key to "correctness", type to Continuous (0.0–1.0)
 """
 
-LANGSMITH_UI_JUDGE_PROMPT = """\
+IS_CORRECT_JUDGE_PROMPT = """\
 You are an expert evaluator. Given a question, a reference answer, and a predicted \
 answer, judge the predicted answer's correctness.
 
@@ -41,16 +41,15 @@ Question: {{input.question}}
 
 Reference answer: {{referenceOutput.answer}}
 
-Predicted answer: {{output.output.content}}"""
+Predicted answer: {{output.output.content}}
 
-LANGSMITH_UI_JUDGE_PROMPT_DESC = """
-Scores predicted answer correctness against the reference answer on a 0.0–1.0 scale.
+Score Description: Scores predicted answer correctness against the reference answer on a 0.0–1.0 scale.
 Checks whether key claims (specific numbers, named sources, caveats, warnings)
 from the reference are present and factually accurate in the prediction.
-"""
 
-#model: Gpt-4o
-#response format: score
+"""
+# model: Gpt-4o
+# response format: score
 # min: 0
 # max: 1
 # incude reasoning

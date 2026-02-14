@@ -37,6 +37,7 @@ def make_target(prompt_ref: str):
         response = structured_chain.invoke({
             "question": inputs["question"],
             "context": inputs["context"],
+            "history": [],
         })
         return {"output": AIMessage(content=response.content)}
 

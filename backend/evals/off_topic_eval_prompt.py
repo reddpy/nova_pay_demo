@@ -34,15 +34,10 @@ Score 1 = on-topic. Score 0 = off-topic.
 HUMAN="""
 Please grade the following example according to the above instructions:
 
-<example>
-<input>
-{{input.question}}⁠
-</input>
 
-</example>
-"""
+Input Question: {{input.question}}⁠
 
-DESCRIPTION="""
+off_topic feedback key description:
 is the question off topic?
 returns true or false.
 """
