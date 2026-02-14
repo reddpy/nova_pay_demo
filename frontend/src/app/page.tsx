@@ -77,6 +77,14 @@ export default function Home() {
 
       const currentConvId = convId;
 
+      // Collect completed messages as history (exclude the placeholder assistant message)
+      const existingMessages = conversations.find(
+        (c) => c.id === currentConvId
+      )?.messages ?? [];
+      const history = existingMessages
+        .filter((m) => m.id !== assistantMessage.id && m.content)
+        .map((m) => ({ role: m.role, content: m.content }));
+
       try {
         await streamChat(
           question,
@@ -153,7 +161,8 @@ export default function Home() {
             setIsStreaming(false);
             setAbortController(null);
           },
-          controller.signal
+          controller.signal,
+          history
         );
       } catch {
         // AbortError is expected when user cancels
