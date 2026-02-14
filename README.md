@@ -18,6 +18,8 @@ A fullstack RAG (Retrieval-Augmented Generation) application for NovaPay's inter
                         └──────────────────┘
 ```
 
+Conversation history is managed **server-side** — the frontend only sends `question` + `thread_id` per request. The backend stores message history in-memory using LangChain's `InMemoryChatMessageHistory`, keyed by `thread_id`.
+
 ## Prerequisites
 
 - [Docker & Docker Compose](https://docs.docker.com/get-docker/)
@@ -92,6 +94,11 @@ These are intentionally built into the docs to create interesting scenarios duri
 - **Demo queries**: "How do I access the billing dashboard?" / "How do I configure Stripe webhooks?"
 - **LangSmith demo**: Trace shows irrelevant retrieval results. Model should respond "I don't have documentation on that topic." Good for showing confidence calibration and hallucination prevention.
 
+### 5. Multi-turn Conversations
+- Ask a question, then follow up with "tell me more" or "can you elaborate?"
+- **Demo**: The backend maintains conversation history per `thread_id`, so follow-ups have full context without the frontend re-sending the entire chat history.
+- **LangSmith demo**: Trace inputs for `route_query` and the answer chain show server-side history messages, confirming context is preserved across turns.
+
 ## Demo Queries (Quick Reference)
 
 | Query | Challenge |
@@ -101,6 +108,7 @@ These are intentionally built into the docs to create interesting scenarios duri
 | "How does our auth system work?" | Stale vs current |
 | "How do I configure Stripe webhooks?" | Documentation gap |
 | "How do I access the billing dashboard?" | Documentation gap |
+| "What's the rate limit?" → "tell me more" | Multi-turn context |
 
 ## Project Structure
 
@@ -114,7 +122,7 @@ langsmith-demo/
 │   ├── pyproject.toml
 │   ├── uv.lock
 │   ├── main.py         # FastAPI app with SSE streaming
-│   ├── rag_chain.py    # RAG pipeline with @traceable spans
+│   ├── rag_chain.py    # RAG pipeline with server-side history & @traceable spans
 │   ├── ingest.py       # Document ingestion into ChromaDB
 │   ├── config.py       # Configuration
 │   └── seed/           # LangSmith seed data (prompts, etc.)
