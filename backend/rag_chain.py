@@ -140,7 +140,19 @@ def _extract_sources(docs: list[Document]) -> list[dict]:
     return sources
 
 
-@ls.traceable(name="rag_stream", run_type="chain")
+def _reduce_stream_chunks(chunks: list[dict]) -> dict:
+    """Aggregate streamed chunks into a single trace output for LangSmith."""
+    content = []
+    sources = []
+    for chunk in chunks:
+        if chunk.get("type") == "token":
+            content.append(chunk.get("content", ""))
+        elif chunk.get("type") == "sources":
+            sources = chunk.get("content", [])
+    return {"content": "".join(content), "sources": sources}
+
+
+@ls.traceable(name="rag_stream", run_type="chain", reduce_fn=_reduce_stream_chunks)
 async def stream_rag_response(
     question: str, metadata: dict | None = None
 ) -> AsyncIterator[dict]:
