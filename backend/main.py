@@ -11,6 +11,8 @@ from langsmith.run_helpers import tracing_context
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
+from langchain_core.messages import AIMessage, HumanMessage
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from backend.rag_chain import stream_rag_response
 
@@ -35,9 +37,15 @@ app.add_middleware(
 )
 
 
+class HistoryMessage(BaseModel):
+    role: str
+    content: str
+
+
 class ChatRequest(BaseModel):
     question: str
     metadata: dict | None = None
+    history: list[HistoryMessage] | None = None
 
 
 @app.get("/api/health")
@@ -53,12 +61,23 @@ async def chat_stream(request: ChatRequest):
 
     thread_id = (request.metadata or {}).get("thread_id")
 
+    # Convert history dicts to LangChain message objects
+    lc_history = None
+    if request.history:
+        lc_history = []
+        for msg in request.history:
+            if msg.role == "user":
+                lc_history.append(HumanMessage(content=msg.content))
+            elif msg.role == "assistant":
+                lc_history.append(AIMessage(content=msg.content))
+
     async def event_generator():
         try:
-            with tracing_context(metadata={"thread_id": thread_id}):
+            with tracing_context(metadata={"session_id": thread_id}):
                 async for chunk in stream_rag_response(
                     question=request.question,
                     metadata=request.metadata,
+                    history=lc_history,
                 ):
                     yield {"data": json.dumps(chunk)}
         except FileNotFoundError as e:

@@ -10,7 +10,8 @@ export async function streamChat(
   onSources: (sources: Source[]) => void,
   onDone: () => void,
   onError: (error: Error) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  history?: { role: string; content: string }[]
 ) {
   await fetchEventSource(`${API_URL}/api/chat/stream`, {
     method: "POST",
@@ -22,6 +23,7 @@ export async function streamChat(
         feature_area: "general",
         thread_id: conversationId,
       },
+      history: history || [],
     }),
     signal,
     openWhenHidden: true,

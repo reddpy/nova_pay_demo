@@ -76,23 +76,26 @@ def list_documents() -> str:
 ROUTE_SYSTEM_PROMPT = (
     "You are a routing assistant for NovaPay documentation. "
     "You have access to a `list_documents` tool that lists every document in the knowledge base. "
-    "If the user is asking what documents or topics are available, call the tool. "
-    "For ANY other question (even if it's about documentation content), just reply with the single word RAG."
+    "ONLY call the tool when the user EXPLICITLY asks to list, browse, or see all available documents "
+    "(e.g. 'what documents do you have?', 'show me available docs', 'list all topics'). "
+    "Do NOT call the tool for ambiguous, short, or follow-up messages like 'yes', 'tell me more', 'go on', 'thanks', etc. "
+    "For EVERYTHING else — including follow-ups, clarifications, and content questions — reply with the single word RAG."
 )
 
 
 @ls.traceable(name="route_query", run_type="chain")
-async def route_query(question: str) -> AIMessage:
+async def route_query(question: str, history: list | None = None) -> AIMessage:
     """Ask the LLM whether to use a tool or fall through to RAG."""
     llm = ChatOpenAI(model=LLM_MODEL, temperature=0).bind_tools([list_documents])
-    response = await llm.ainvoke([
-        SystemMessage(content=ROUTE_SYSTEM_PROMPT),
-        HumanMessage(content=question),
-    ])
+    messages = [SystemMessage(content=ROUTE_SYSTEM_PROMPT)]
+    if history:
+        messages.extend(history)
+    messages.append(HumanMessage(content=question))
+    response = await llm.ainvoke(messages)
     return response
 
 
-@ls.traceable(name="retrieve_documents")
+@ls.traceable(name="retrieve_documents", run_type="retriever")
 def retrieve_documents(question: str, metadata: dict | None = None) -> list[Document]:
     """Retrieve relevant documents from the vector store."""
     vectorstore = _get_vectorstore()
@@ -101,7 +104,7 @@ def retrieve_documents(question: str, metadata: dict | None = None) -> list[Docu
     return docs
 
 
-@ls.traceable(name="format_context")
+@ls.traceable(name="format_context", run_type="chain")
 def format_context(docs: list[Document]) -> str:
     """Format retrieved documents into a context string."""
     context_parts = []
@@ -129,10 +132,14 @@ def _extract_sources(docs: list[Document]) -> list[dict]:
 
 @ls.traceable(name="rag_stream", run_type="chain")
 async def stream_rag_response(
-    question: str, metadata: dict | None = None
+    question: str, metadata: dict | None = None, history: list | None = None
 ) -> AsyncIterator[dict]:
     """Streaming RAG pipeline with tool-calling routing."""
-    route_response = await route_query(question)
+    # Propagate session_id to all child runs for proper thread grouping
+    session_id = (metadata or {}).get("thread_id")
+    ls_extra = {"metadata": {"session_id": session_id}} if session_id else {}
+
+    route_response = await route_query(question, history=history, langsmith_extra=ls_extra)
 
     if route_response.tool_calls:
         tool_call = route_response.tool_calls[0]
@@ -153,12 +160,16 @@ async def stream_rag_response(
         yield {"type": "done"}
         return
 
-    docs = retrieve_documents(question, metadata=metadata)
-    context = format_context(docs)
+    docs = retrieve_documents(question, metadata=metadata, langsmith_extra=ls_extra)
+    context = format_context(docs, langsmith_extra=ls_extra)
 
     chain = _get_chain()
 
-    async for chunk in chain.astream({"context": context, "question": question}):
+    chain_input = {"context": context, "question": question}
+    if history:
+        chain_input["history"] = history
+
+    async for chunk in chain.astream(chain_input):
         if chunk.content:
             yield {"type": "token", "content": chunk.content}
 
